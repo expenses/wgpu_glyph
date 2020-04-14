@@ -58,7 +58,7 @@ fn main() -> Result<(), String> {
         .expect("Load fonts");
 
     if pixelated {
-        glyph_brush_builder = glyph_brush_builder.mode(wgpu_glyph::Mode::Pixelated(2.0));
+        glyph_brush_builder = glyph_brush_builder.mode(wgpu_glyph::DrawMode::Pixelated(2.0));
     }
 
     let mut glyph_brush = glyph_brush_builder.build(&device, render_format);

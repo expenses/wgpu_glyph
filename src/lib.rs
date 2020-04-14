@@ -26,9 +26,12 @@ use std::borrow::Cow;
 use glyph_brush::{BrushAction, BrushError, Color, DefaultSectionHasher};
 use log::{log_enabled, warn};
 
+/// The mode to render the glyphs with.
 #[derive(Clone, Copy)]
-pub enum Mode {
+pub enum DrawMode {
+    /// The default mode which uses a 1:1 pixel ratio and smooth edges.
     Normal,
+    /// A pixelated mode, which pixelated the font by a certain value and rounds the alpha values.
     Pixelated(f32)
 }
 
@@ -39,7 +42,7 @@ pub enum Mode {
 pub struct GlyphBrush<'font, Depth, H = DefaultSectionHasher> {
     pipeline: Pipeline<Depth>,
     glyph_brush: glyph_brush::GlyphBrush<'font, Instance, H>,
-    mode: Mode,
+    mode: DrawMode,
 }
 
 impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
@@ -55,7 +58,7 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
     {
         let mut section = section.into();
 
-        if let Mode::Pixelated(pixelation) = self.mode {
+        if let DrawMode::Pixelated(pixelation) = self.mode {
             let section = section.to_mut();
 
             section.screen_position.0 /= pixelation;
@@ -232,7 +235,7 @@ impl<'font, H: BuildHasher> GlyphBrush<'font, (), H> {
         filter_mode: wgpu::FilterMode,
         render_format: wgpu::TextureFormat,
         raw_builder: glyph_brush::GlyphBrushBuilder<'font, H>,
-        mode: Mode,
+        mode: DrawMode,
     ) -> Self {
         let glyph_brush = raw_builder.build();
         let (cache_width, cache_height) = glyph_brush.texture_dimensions();
@@ -339,7 +342,7 @@ impl<'font, H: BuildHasher>
         render_format: wgpu::TextureFormat,
         depth_stencil_state: wgpu::DepthStencilStateDescriptor,
         raw_builder: glyph_brush::GlyphBrushBuilder<'font, H>,
-        mode: Mode,
+        mode: DrawMode,
     ) -> Self {
         let glyph_brush = raw_builder.build();
         let (cache_width, cache_height) = glyph_brush.texture_dimensions();

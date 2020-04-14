@@ -11,7 +11,7 @@ pub struct GlyphBrushBuilder<'a, D, H = DefaultSectionHasher> {
     inner: glyph_brush::GlyphBrushBuilder<'a, H>,
     texture_filter_method: wgpu::FilterMode,
     depth: D,
-    mode: crate::Mode,
+    mode: crate::DrawMode,
 }
 
 impl<'a, H> From<glyph_brush::GlyphBrushBuilder<'a, H>>
@@ -22,7 +22,7 @@ impl<'a, H> From<glyph_brush::GlyphBrushBuilder<'a, H>>
             inner,
             texture_filter_method: wgpu::FilterMode::Linear,
             depth: (),
-            mode: crate::Mode::Normal,
+            mode: crate::DrawMode::Normal,
         }
     }
 }
@@ -66,7 +66,7 @@ impl<'a> GlyphBrushBuilder<'a, ()> {
             inner: glyph_brush::GlyphBrushBuilder::using_fonts(fonts),
             texture_filter_method: wgpu::FilterMode::Linear,
             depth: (),
-            mode: crate::Mode::Normal,
+            mode: crate::DrawMode::Normal,
         }
     }
 }
@@ -117,7 +117,7 @@ impl<'a, D, H: BuildHasher> GlyphBrushBuilder<'a, D, H> {
 
     pub fn mode(
         self,
-        mode: crate::Mode
+        mode: crate::DrawMode
     ) -> GlyphBrushBuilder<'a, D, H> {
         GlyphBrushBuilder {
             inner: self.inner,
@@ -125,8 +125,8 @@ impl<'a, D, H: BuildHasher> GlyphBrushBuilder<'a, D, H> {
             mode,
             texture_filter_method: match mode {
                 // This is the only filter mode that renders nicely
-                crate::Mode::Pixelated(_) => wgpu::FilterMode::Nearest,
-                crate::Mode::Normal => self.texture_filter_method,
+                crate::DrawMode::Pixelated(_) => wgpu::FilterMode::Nearest,
+                crate::DrawMode::Normal => self.texture_filter_method,
             },
         }
     }
