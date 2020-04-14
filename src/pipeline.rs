@@ -1,12 +1,31 @@
 mod cache;
 
-use crate::Region;
+use crate::{Region, Mode};
 use cache::Cache;
 
 use glyph_brush::rusttype::{point, Rect};
 use std::marker::PhantomData;
 use std::mem;
 use zerocopy::AsBytes;
+
+#[repr(C)]
+#[derive(AsBytes)]
+struct Transform {
+    matrix: [f32; 16],
+    pixelation: f32,
+}
+
+impl Transform {
+    fn new(matrix: [f32; 16], mode: Mode) -> Self {
+        Self {
+            matrix,
+            pixelation: match mode {
+                Mode::Normal => -1.0,
+                Mode::Pixelated(pixelation) => pixelation,
+            }
+        }
+    }
+}
 
 pub struct Pipeline<Depth> {
     transform: wgpu::Buffer,
@@ -29,6 +48,7 @@ impl Pipeline<()> {
         render_format: wgpu::TextureFormat,
         cache_width: u32,
         cache_height: u32,
+        mode: Mode,
     ) -> Pipeline<()> {
         build(
             device,
@@ -37,6 +57,7 @@ impl Pipeline<()> {
             None,
             cache_width,
             cache_height,
+            mode,
         )
     }
 
@@ -46,9 +67,10 @@ impl Pipeline<()> {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         transform: [f32; 16],
+        mode: Mode,
         region: Option<Region>,
     ) {
-        draw(self, device, encoder, target, None, transform, region);
+        draw(self, device, encoder, target, None, transform, mode, region);
     }
 }
 
@@ -60,6 +82,7 @@ impl Pipeline<wgpu::DepthStencilStateDescriptor> {
         depth_stencil_state: wgpu::DepthStencilStateDescriptor,
         cache_width: u32,
         cache_height: u32,
+        mode: Mode,
     ) -> Pipeline<wgpu::DepthStencilStateDescriptor> {
         build(
             device,
@@ -68,6 +91,7 @@ impl Pipeline<wgpu::DepthStencilStateDescriptor> {
             Some(depth_stencil_state),
             cache_width,
             cache_height,
+            mode,
         )
     }
 
@@ -78,6 +102,7 @@ impl Pipeline<wgpu::DepthStencilStateDescriptor> {
         target: &wgpu::TextureView,
         depth_stencil_attachment: wgpu::RenderPassDepthStencilAttachmentDescriptor,
         transform: [f32; 16],
+        mode: Mode,
         region: Option<Region>,
     ) {
         draw(
@@ -87,6 +112,7 @@ impl Pipeline<wgpu::DepthStencilStateDescriptor> {
             target,
             Some(depth_stencil_attachment),
             transform,
+            mode,
             region,
         );
     }
@@ -176,9 +202,10 @@ fn build<D>(
     depth_stencil_state: Option<wgpu::DepthStencilStateDescriptor>,
     cache_width: u32,
     cache_height: u32,
+    mode: Mode
 ) -> Pipeline<D> {
-    let transform = device.create_buffer_with_data(
-        IDENTITY_MATRIX.as_bytes(),
+    let transform_buffer = device.create_buffer_with_data(
+        Transform::new(IDENTITY_MATRIX, mode).as_bytes(),
         wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
     );
 
@@ -225,7 +252,7 @@ fn build<D>(
     let uniforms = create_uniforms(
         device,
         &uniform_layout,
-        &transform,
+        &transform_buffer,
         &sampler,
         &cache.view,
     );
@@ -325,7 +352,7 @@ fn build<D>(
     });
 
     Pipeline {
-        transform,
+        transform: transform_buffer,
         sampler,
         cache,
         uniform_layout,
@@ -348,11 +375,12 @@ fn draw<D>(
         wgpu::RenderPassDepthStencilAttachmentDescriptor,
     >,
     transform: [f32; 16],
+    mode: Mode,
     region: Option<Region>,
 ) {
     if transform != pipeline.current_transform {
         let transform_buffer = device.create_buffer_with_data(
-            transform.as_bytes(),
+            Transform::new(transform, mode).as_bytes(),
             wgpu::BufferUsage::COPY_SRC,
         );
 
@@ -361,7 +389,7 @@ fn draw<D>(
             0,
             &pipeline.transform,
             0,
-            16 * 4,
+            (16 + 1) * 4,
         );
 
         pipeline.current_transform = transform;

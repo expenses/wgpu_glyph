@@ -26,6 +26,12 @@ use std::borrow::Cow;
 use glyph_brush::{BrushAction, BrushError, Color, DefaultSectionHasher};
 use log::{log_enabled, warn};
 
+#[derive(Clone, Copy)]
+pub enum Mode {
+    Normal,
+    Pixelated(f32)
+}
+
 /// Object allowing glyph drawing, containing cache state. Manages glyph positioning cacheing,
 /// glyph draw caching & efficient GPU texture cache updating and re-sizing on demand.
 ///
@@ -33,6 +39,7 @@ use log::{log_enabled, warn};
 pub struct GlyphBrush<'font, Depth, H = DefaultSectionHasher> {
     pipeline: Pipeline<Depth>,
     glyph_brush: glyph_brush::GlyphBrush<'font, Instance, H>,
+    mode: Mode,
 }
 
 impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
@@ -46,6 +53,20 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
     where
         S: Into<Cow<'a, VariedSection<'a>>>,
     {
+        let mut section = section.into();
+
+        if let Mode::Pixelated(pixelation) = self.mode {
+            let section = section.to_mut();
+
+            section.screen_position.0 /= pixelation;
+            section.screen_position.1 /= pixelation;
+
+            for text in &mut section.text {
+                text.scale.x /= pixelation;
+                text.scale.y /= pixelation;
+            }
+        }
+
         self.glyph_brush.queue(section)
     }
 
@@ -211,6 +232,7 @@ impl<'font, H: BuildHasher> GlyphBrush<'font, (), H> {
         filter_mode: wgpu::FilterMode,
         render_format: wgpu::TextureFormat,
         raw_builder: glyph_brush::GlyphBrushBuilder<'font, H>,
+        mode: Mode,
     ) -> Self {
         let glyph_brush = raw_builder.build();
         let (cache_width, cache_height) = glyph_brush.texture_dimensions();
@@ -221,8 +243,10 @@ impl<'font, H: BuildHasher> GlyphBrush<'font, (), H> {
                 render_format,
                 cache_width,
                 cache_height,
+                mode,
             ),
             glyph_brush,
+            mode,
         }
     }
 
@@ -273,7 +297,7 @@ impl<'font, H: BuildHasher> GlyphBrush<'font, (), H> {
         transform: [f32; 16],
     ) -> Result<(), String> {
         self.process_queued(device, encoder);
-        self.pipeline.draw(device, encoder, target, transform, None);
+        self.pipeline.draw(device, encoder, target, transform, self.mode, None);
 
         Ok(())
     }
@@ -300,7 +324,7 @@ impl<'font, H: BuildHasher> GlyphBrush<'font, (), H> {
     ) -> Result<(), String> {
         self.process_queued(device, encoder);
         self.pipeline
-            .draw(device, encoder, target, transform, Some(region));
+            .draw(device, encoder, target, transform, self.mode, Some(region));
 
         Ok(())
     }
@@ -315,6 +339,7 @@ impl<'font, H: BuildHasher>
         render_format: wgpu::TextureFormat,
         depth_stencil_state: wgpu::DepthStencilStateDescriptor,
         raw_builder: glyph_brush::GlyphBrushBuilder<'font, H>,
+        mode: Mode,
     ) -> Self {
         let glyph_brush = raw_builder.build();
         let (cache_width, cache_height) = glyph_brush.texture_dimensions();
@@ -326,8 +351,10 @@ impl<'font, H: BuildHasher>
                 depth_stencil_state,
                 cache_width,
                 cache_height,
+                mode,
             ),
             glyph_brush,
+            mode,
         }
     }
 
@@ -387,6 +414,7 @@ impl<'font, H: BuildHasher>
             target,
             depth_stencil_attachment,
             transform,
+            self.mode,
             None,
         );
 
@@ -415,13 +443,13 @@ impl<'font, H: BuildHasher>
         region: Region,
     ) -> Result<(), String> {
         self.process_queued(device, encoder);
-
         self.pipeline.draw(
             device,
             encoder,
             target,
             depth_stencil_attachment,
             transform,
+            self.mode,
             Some(region),
         );
 

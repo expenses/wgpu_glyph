@@ -11,6 +11,7 @@ pub struct GlyphBrushBuilder<'a, D, H = DefaultSectionHasher> {
     inner: glyph_brush::GlyphBrushBuilder<'a, H>,
     texture_filter_method: wgpu::FilterMode,
     depth: D,
+    mode: crate::Mode,
 }
 
 impl<'a, H> From<glyph_brush::GlyphBrushBuilder<'a, H>>
@@ -21,6 +22,7 @@ impl<'a, H> From<glyph_brush::GlyphBrushBuilder<'a, H>>
             inner,
             texture_filter_method: wgpu::FilterMode::Linear,
             depth: (),
+            mode: crate::Mode::Normal,
         }
     }
 }
@@ -64,6 +66,7 @@ impl<'a> GlyphBrushBuilder<'a, ()> {
             inner: glyph_brush::GlyphBrushBuilder::using_fonts(fonts),
             texture_filter_method: wgpu::FilterMode::Linear,
             depth: (),
+            mode: crate::Mode::Normal,
         }
     }
 }
@@ -95,6 +98,7 @@ impl<'a, D, H: BuildHasher> GlyphBrushBuilder<'a, D, H> {
             inner: self.inner.section_hasher(section_hasher),
             texture_filter_method: self.texture_filter_method,
             depth: self.depth,
+            mode: self.mode,
         }
     }
 
@@ -107,6 +111,23 @@ impl<'a, D, H: BuildHasher> GlyphBrushBuilder<'a, D, H> {
             inner: self.inner,
             texture_filter_method: self.texture_filter_method,
             depth: depth_stencil_state,
+            mode: self.mode,
+        }
+    }
+
+    pub fn mode(
+        self,
+        mode: crate::Mode
+    ) -> GlyphBrushBuilder<'a, D, H> {
+        GlyphBrushBuilder {
+            inner: self.inner,
+            depth: self.depth,
+            mode,
+            texture_filter_method: match mode {
+                // This is the only filter mode that renders nicely
+                crate::Mode::Pixelated(_) => wgpu::FilterMode::Nearest,
+                crate::Mode::Normal => self.texture_filter_method,
+            },
         }
     }
 }
@@ -124,6 +145,7 @@ impl<'a, H: BuildHasher> GlyphBrushBuilder<'a, (), H> {
             self.texture_filter_method,
             render_format,
             self.inner,
+            self.mode,
         )
     }
 }
@@ -144,6 +166,7 @@ impl<'a, H: BuildHasher>
             render_format,
             self.depth,
             self.inner,
+            self.mode,
         )
     }
 }
