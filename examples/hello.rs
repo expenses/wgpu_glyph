@@ -3,8 +3,6 @@ use wgpu_glyph::{GlyphBrushBuilder, Scale, Section};
 fn main() -> Result<(), String> {
     env_logger::init();
 
-    let pixelated = std::env::args().nth(1) == Some("pixelated".into());
-
     // Open window and create a surface
     let event_loop = winit::event_loop::EventLoop::new();
 
@@ -54,14 +52,11 @@ fn main() -> Result<(), String> {
 
     // Prepare glyph_brush
     let inconsolata: &[u8] = include_bytes!("Inconsolata-Regular.ttf");
-    let mut glyph_brush_builder = GlyphBrushBuilder::using_font_bytes(inconsolata)
-        .expect("Load fonts");
-
-    if pixelated {
-        glyph_brush_builder = glyph_brush_builder.mode(wgpu_glyph::DrawMode::Pixelated(2.0));
-    }
-
-    let mut glyph_brush = glyph_brush_builder.build(&device, render_format);
+    let mut glyph_brush = GlyphBrushBuilder::using_font_bytes(inconsolata)
+        .expect("Load fonts")
+        // Needed to draw pixelated fonts correctly
+        .texture_filter_method(wgpu::FilterMode::Nearest)
+        .build(&device, render_format);
 
     // Render loop
     window.request_redraw();
@@ -139,6 +134,7 @@ fn main() -> Result<(), String> {
                     color: [1.0, 1.0, 1.0, 1.0],
                     scale: Scale { x: 40.0, y: 40.0 },
                     bounds: (size.width as f32, size.height as f32),
+                    custom: wgpu_glyph::DrawMode::Pixelated(2.0),
                     ..Section::default()
                 });
 

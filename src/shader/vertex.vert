@@ -2,7 +2,6 @@
 
 layout(set = 0, binding = 0) uniform Transform {
     mat4 transform;
-    float pixelation;
 };
 
 layout(location = 0) in vec3 left_top;
@@ -10,6 +9,7 @@ layout(location = 1) in vec2 right_bottom;
 layout(location = 2) in vec2 tex_left_top;
 layout(location = 3) in vec2 tex_right_bottom;
 layout(location = 4) in vec4 color;
+layout(location = 5) in float pixelation;
 
 layout(location = 0) out vec2 f_tex_pos;
 layout(location = 1) out vec4 f_color;
