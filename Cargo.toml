@@ -15,6 +15,7 @@ wgpu = "0.5"
 glyph_brush = { path = "../glyph-brush/glyph-brush"}
 log = "0.4"
 zerocopy = "0.3"
+ordered-float = "1.0.2"
 
 [dev-dependencies]
 env_logger = "0.7"

@@ -506,7 +506,7 @@ impl From<glyph_brush::GlyphVertex<DrawMode>> for Instance {
             color,
             pixelation: match mode {
                 DrawMode::Normal => -1.0,
-                DrawMode::Pixelated(pixelation) => pixelation,
+                DrawMode::Pixelated(pixelation) => pixelation.into_inner(),
             }
         }
     }

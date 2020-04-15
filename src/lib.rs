@@ -27,12 +27,18 @@ use glyph_brush::{BrushAction, BrushError, Color, DefaultSectionHasher};
 use log::{log_enabled, warn};
 
 /// The mode to render the glyphs with.
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub enum DrawMode {
     /// The default mode which uses a 1:1 pixel ratio and smooth edges.
     Normal,
     /// A pixelated mode, which pixelated the font by a certain value and rounds the alpha values.
-    Pixelated(f32)
+    Pixelated(ordered_float::OrderedFloat<f32>)
+}
+
+impl DrawMode {
+    pub fn pixelated(inner: f32) -> Self {
+        Self::Pixelated(ordered_float::OrderedFloat(inner))
+    }
 }
 
 impl Default for DrawMode {
@@ -65,6 +71,7 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
 
         if let DrawMode::Pixelated(pixelation) = section.custom {
             let section = section.to_mut();
+            let pixelation = pixelation.into_inner();
 
             section.screen_position.0 /= pixelation;
             section.screen_position.1 /= pixelation;
