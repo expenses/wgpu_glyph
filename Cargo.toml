@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 wgpu = "0.5"
-glyph_brush = { path = "../glyph-brush/glyph-brush"}
+glyph_brush = { git = "https://github.com/expenses/glyph-brush", branch = "custom" }
 log = "0.4"
 zerocopy = "0.3"
 ordered-float = "1.0.2"
