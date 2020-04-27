@@ -69,18 +69,7 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
     {
         let mut section = section.into();
 
-        if let DrawMode::Pixelated(pixelation) = section.custom {
-            let section = section.to_mut();
-            let pixelation = pixelation.into_inner();
-
-            section.screen_position.0 /= pixelation;
-            section.screen_position.1 /= pixelation;
-
-            for text in &mut section.text {
-                text.scale.x /= pixelation;
-                text.scale.y /= pixelation;
-            }
-        }
+        preprocess_section(&mut section);
 
         self.glyph_brush.queue(section)
     }
@@ -103,6 +92,8 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
         G: GlyphPositioner,
         S: Into<Cow<'a, VariedSection<'a, DrawMode>>>,
     {
+        let mut section = section.into();
+        preprocess_section(&mut section);
         self.glyph_brush.queue_custom_layout(section, custom_layout)
     }
 
@@ -112,12 +103,11 @@ impl<'font, Depth, H: BuildHasher> GlyphBrush<'font, Depth, H> {
     #[inline]
     pub fn queue_pre_positioned(
         &mut self,
-        glyphs: Vec<(PositionedGlyph<'font>, Color, FontId)>,
+        glyphs: Vec<(PositionedGlyph<'font>, Color, FontId, DrawMode)>,
         bounds: Rect<f32>,
         z: f32,
-        mode: DrawMode,
     ) {
-        self.glyph_brush.queue_pre_positioned(glyphs, bounds, z, mode)
+        self.glyph_brush.queue_pre_positioned(glyphs, bounds, z)
     }
 
     /// Retains the section in the cache as if it had been used in the last
@@ -499,7 +489,7 @@ impl<'font, D, H: BuildHasher> GlyphCruncher<'font, DrawMode>
         &'b mut self,
         section: S,
         custom_layout: &L,
-    ) -> PositionedGlyphIter<'b, 'font>
+    ) -> PositionedGlyphIter<'b, 'font, DrawMode>
     where
         L: GlyphPositioner + std::hash::Hash,
         S: Into<Cow<'a, VariedSection<'a, DrawMode>>>,
@@ -518,5 +508,44 @@ impl<H> std::fmt::Debug for GlyphBrush<'_, H> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GlyphBrush")
+    }
+}
+
+fn preprocess_section(section: &mut Cow<VariedSection<DrawMode>>) {
+    if let DrawMode::Pixelated(pixelation) = section.text[0].custom {
+        let section = section.to_mut();
+        let pixelation = pixelation.into_inner();
+        section.screen_position.0 /= pixelation;
+        section.screen_position.1 /= pixelation;
+
+        for text in &mut section.text {
+            text.scale.x /= pixelation;
+            text.scale.y /= pixelation;
+        }
+    }
+}
+
+#[derive(Hash)]
+pub struct PixelPositioner(pub Layout<BuiltInLineBreaker>);
+
+impl GlyphPositioner for PixelPositioner {
+    fn calculate_glyphs<'font, F: FontMap<'font>, C: Clone>(
+        &self,
+        font_map: &F,
+        geometry: &SectionGeometry,
+        sections: &[SectionText<'_, C>],
+    ) -> Vec<(PositionedGlyph<'font>, Color, FontId, C)> {
+        let mut glyphs = self.0.calculate_glyphs(font_map, geometry, sections);
+
+        for (g, ..) in &mut glyphs {
+            let p = g.position();
+            g.set_position(rusttype::point(p.x.floor(), p.y.floor()));
+        }
+
+        glyphs
+    }
+
+    fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
+        self.0.bounds_rect(geometry)
     }
 }

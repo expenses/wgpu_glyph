@@ -20,7 +20,6 @@ impl Cache {
                 height,
                 depth: 1,
             },
-            array_layer_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::R8Unorm,
             usage: wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::SAMPLED,

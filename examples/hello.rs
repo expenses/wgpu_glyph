@@ -134,7 +134,7 @@ fn main() -> Result<(), String> {
                     color: [1.0, 1.0, 1.0, 1.0],
                     scale: Scale { x: 40.0, y: 40.0 },
                     bounds: (size.width as f32, size.height as f32),
-                    custom: wgpu_glyph::DrawMode::Pixelated(2.0),
+                    custom: wgpu_glyph::DrawMode::pixelated(2.0),
                     ..Section::default()
                 });
 
