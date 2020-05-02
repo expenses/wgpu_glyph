@@ -192,6 +192,7 @@ fn build<D>(
         lod_min_clamp: 0.0,
         lod_max_clamp: 0.0,
         compare: wgpu::CompareFunction::Always,
+        label: Some("wgpu_glyph::Pipeline sampler")
     });
 
     let cache = Cache::new(device, cache_width, cache_height);
