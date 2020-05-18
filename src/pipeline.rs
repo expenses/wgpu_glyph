@@ -392,7 +392,7 @@ fn draw<D>(
 
     render_pass.set_pipeline(&pipeline.raw);
     render_pass.set_bind_group(0, &pipeline.uniforms, &[]);
-    render_pass.set_vertex_buffer(0, &pipeline.instances, 0, 0);
+    render_pass.set_vertex_buffer(0, pipeline.instances.slice(0 .. 0));
 
     if let Some(region) = region {
         render_pass.set_scissor_rect(
@@ -419,10 +419,7 @@ fn create_uniforms(
         bindings: &[
             wgpu::Binding {
                 binding: 0,
-                resource: wgpu::BindingResource::Buffer {
-                    buffer: transform,
-                    range: 0..64,
-                },
+                resource: wgpu::BindingResource::Buffer(transform.slice(0 .. 64)),
             },
             wgpu::Binding {
                 binding: 1,
