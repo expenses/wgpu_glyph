@@ -138,6 +138,7 @@ impl<Depth> Pipeline<Depth> {
                 size: mem::size_of::<Instance>() as u64
                     * instances.len() as u64,
                 usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+                mapped_at_creation: false,
             });
 
             self.supported_instances = instances.len();
@@ -191,7 +192,8 @@ fn build<D>(
         mipmap_filter: filter_mode,
         lod_min_clamp: 0.0,
         lod_max_clamp: 0.0,
-        compare: wgpu::CompareFunction::Always,
+        compare: Some(wgpu::CompareFunction::Always),
+        anisotropy_clamp: None,
         label: Some("wgpu_glyph::Pipeline sampler")
     });
 
@@ -236,6 +238,7 @@ fn build<D>(
         size: mem::size_of::<Instance>() as u64
             * Instance::INITIAL_AMOUNT as u64,
         usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+        mapped_at_creation: false,
     });
 
     let layout =
