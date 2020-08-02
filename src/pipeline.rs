@@ -6,7 +6,9 @@ use cache::Cache;
 use glyph_brush::rusttype::{point, Rect};
 use std::marker::PhantomData;
 use std::mem;
+use std::borrow::Cow;
 use zerocopy::AsBytes;
+use wgpu::util::DeviceExt;
 
 pub struct Pipeline<Depth> {
     transform: wgpu::Buffer,
@@ -134,7 +136,7 @@ impl<Depth> Pipeline<Depth> {
 
         if instances.len() > self.supported_instances {
             self.instances = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("wgpu_glyph::Pipeline instances"),
+                label: Some("wgpu_glyph::Pipeline instances".into()),
                 size: mem::size_of::<Instance>() as u64
                     * instances.len() as u64,
                 usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
@@ -144,10 +146,11 @@ impl<Depth> Pipeline<Depth> {
             self.supported_instances = instances.len();
         }
 
-        let instance_buffer = device.create_buffer_with_data(
-            instances.as_bytes(),
-            wgpu::BufferUsage::COPY_SRC,
-        );
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("wgpu_glyph instance buffer"),
+            contents: instances.as_bytes(),
+            usage: wgpu::BufferUsage::COPY_SRC,
+        });
 
         encoder.copy_buffer_to_buffer(
             &instance_buffer,
@@ -178,10 +181,11 @@ fn build<D>(
     cache_width: u32,
     cache_height: u32,
 ) -> Pipeline<D> {
-    let transform = device.create_buffer_with_data(
-        IDENTITY_MATRIX.as_bytes(),
-        wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-    );
+    let transform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("wgpu_glyph transform buffer"),
+        contents: IDENTITY_MATRIX.as_bytes(),
+        usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+    });
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -194,24 +198,29 @@ fn build<D>(
         lod_max_clamp: 0.0,
         compare: Some(wgpu::CompareFunction::Always),
         anisotropy_clamp: None,
-        label: Some("wgpu_glyph::Pipeline sampler")
+        label: Some("wgpu_glyph::Pipeline sampler".into())
     });
 
     let cache = Cache::new(device, cache_width, cache_height);
 
     let uniform_layout =
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("wgpu_glyph::Pipeline uniforms"),
-            bindings: &[
+            label: Some("wgpu_glyph::Pipeline uniforms".into()),
+            entries: Cow::Borrowed(&[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::VERTEX,
-                    ty: wgpu::BindingType::UniformBuffer { dynamic: false },
+                    ty: wgpu::BindingType::UniformBuffer {
+                        dynamic: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::Sampler { comparison: true },
+                    count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
@@ -221,8 +230,9 @@ fn build<D>(
                         component_type: wgpu::TextureComponentType::Float,
                         multisampled: false,
                     },
+                    count: None,
                 },
-            ],
+            ]),
         });
 
     let uniforms = create_uniforms(
@@ -234,7 +244,7 @@ fn build<D>(
     );
 
     let instances = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("wgpu_glyph::Pipeline instances"),
+        label: Some("wgpu_glyph::Pipeline instances".into()),
         size: mem::size_of::<Instance>() as u64
             * Instance::INITIAL_AMOUNT as u64,
         usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
@@ -243,28 +253,27 @@ fn build<D>(
 
     let layout =
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            bind_group_layouts: &[&uniform_layout],
+            bind_group_layouts: Cow::Borrowed(&[&uniform_layout]),
+            push_constant_ranges: Default::default(),
         });
 
-    let vs = include_bytes!("shader/vertex.spv");
     let vs_module = device.create_shader_module(
-        &wgpu::read_spirv(std::io::Cursor::new(&vs[..])).unwrap(),
+        wgpu::include_spirv!("shader/vertex.spv")
     );
 
-    let fs = include_bytes!("shader/fragment.spv");
     let fs_module = device.create_shader_module(
-        &wgpu::read_spirv(std::io::Cursor::new(&fs[..])).unwrap(),
+        wgpu::include_spirv!("shader/fragment.spv")
     );
 
     let raw = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         layout: &layout,
         vertex_stage: wgpu::ProgrammableStageDescriptor {
             module: &vs_module,
-            entry_point: "main",
+            entry_point: "main".into(),
         },
         fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
             module: &fs_module,
-            entry_point: "main",
+            entry_point: "main".into(),
         }),
         rasterization_state: Some(wgpu::RasterizationStateDescriptor {
             front_face: wgpu::FrontFace::Cw,
@@ -272,9 +281,10 @@ fn build<D>(
             depth_bias: 0,
             depth_bias_slope_scale: 0.0,
             depth_bias_clamp: 0.0,
+            clamp_depth: false,
         }),
         primitive_topology: wgpu::PrimitiveTopology::TriangleStrip,
-        color_states: &[wgpu::ColorStateDescriptor {
+        color_states: Cow::Borrowed(&[wgpu::ColorStateDescriptor {
             format: render_format,
             color_blend: wgpu::BlendDescriptor {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -287,14 +297,14 @@ fn build<D>(
                 operation: wgpu::BlendOperation::Add,
             },
             write_mask: wgpu::ColorWrite::ALL,
-        }],
+        }]),
         depth_stencil_state,
         vertex_state: wgpu::VertexStateDescriptor {
             index_format: wgpu::IndexFormat::Uint16,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
+            vertex_buffers: Cow::Borrowed(&[wgpu::VertexBufferDescriptor {
                 stride: mem::size_of::<Instance>() as u64,
                 step_mode: wgpu::InputStepMode::Instance,
-                attributes: &[
+                attributes: Cow::Borrowed(&[
                     wgpu::VertexAttributeDescriptor {
                         shader_location: 0,
                         format: wgpu::VertexFormat::Float3,
@@ -325,8 +335,8 @@ fn build<D>(
                         format: wgpu::VertexFormat::Float,
                         offset: 4 * (3 + 2 + 2 + 2 + 4),
                     },
-                ],
-            }],
+                ]),
+            }]),
         },
         sample_count: 1,
         sample_mask: !0,
@@ -360,10 +370,11 @@ fn draw<D>(
     region: Option<Region>,
 ) {
     if transform != pipeline.current_transform {
-        let transform_buffer = device.create_buffer_with_data(
-            transform.as_bytes(),
-            wgpu::BufferUsage::COPY_SRC,
-        );
+        let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("wgpu_glyph transform buffer"),
+            contents: transform.as_bytes(),
+            usage: wgpu::BufferUsage::COPY_SRC,
+        });
 
         encoder.copy_buffer_to_buffer(
             &transform_buffer,
@@ -378,18 +389,14 @@ fn draw<D>(
 
     let mut render_pass =
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+            color_attachments: Cow::Borrowed(&[wgpu::RenderPassColorAttachmentDescriptor {
                 attachment: target,
                 resolve_target: None,
-                load_op: wgpu::LoadOp::Load,
-                store_op: wgpu::StoreOp::Store,
-                clear_color: wgpu::Color {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
                 },
-            }],
+            }]),
             depth_stencil_attachment,
         });
 
@@ -417,22 +424,22 @@ fn create_uniforms(
     cache: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("wgpu_glyph::Pipeline uniforms"),
+        label: Some("wgpu_glyph::Pipeline uniforms".into()),
         layout: layout,
-        bindings: &[
-            wgpu::Binding {
+        entries: Cow::Borrowed(&[
+            wgpu::BindGroupEntry {
                 binding: 0,
                 resource: wgpu::BindingResource::Buffer(transform.slice(0 .. 64)),
             },
-            wgpu::Binding {
+            wgpu::BindGroupEntry {
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(sampler),
             },
-            wgpu::Binding {
+            wgpu::BindGroupEntry {
                 binding: 2,
                 resource: wgpu::BindingResource::TextureView(cache),
             },
-        ],
+        ]),
     })
 }
 

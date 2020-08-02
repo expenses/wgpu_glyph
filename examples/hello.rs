@@ -11,28 +11,32 @@ fn main() -> Result<(), String> {
         .build(&event_loop)
         .unwrap();
 
-    let surface = wgpu::Surface::create(&window);
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+
+    let surface = unsafe {
+        instance.create_surface(&window)
+    };
 
     // Initialize GPU
     let (device, queue) = futures::executor::block_on(async {
-        let adapter = wgpu::Adapter::request(
-            &wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-            },
-            wgpu::BackendBit::all(),
-        )
+        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&surface),
+        })
         .await
         .expect("Request adapter");
 
         adapter
             .request_device(&wgpu::DeviceDescriptor {
-                extensions: wgpu::Extensions {
-                    anisotropic_filtering: false,
+                features: wgpu::Features::empty(),
+                limits: wgpu::Limits {
+                    max_bind_groups: 1,
+                    ..Default::default()
                 },
-                limits: wgpu::Limits { max_bind_groups: 1 },
-            })
+                shader_validation: true,
+            }, None)
             .await
+            .expect("Request device")
     });
 
     // Prepare swap chain
@@ -88,32 +92,33 @@ fn main() -> Result<(), String> {
                 // Get a command encoder for the current frame
                 let mut encoder = device.create_command_encoder(
                     &wgpu::CommandEncoderDescriptor {
-                        label: Some("Redraw"),
+                        label: Some("Redraw".into()),
                     },
                 );
 
                 // Get the next frame
                 let frame =
-                    swap_chain.get_next_texture().expect("Get next frame");
+                    swap_chain.get_current_frame().expect("Get next frame");
 
                 // Clear frame
                 {
                     let _ = encoder.begin_render_pass(
                         &wgpu::RenderPassDescriptor {
-                            color_attachments: &[
+                            color_attachments: std::borrow::Cow::Borrowed(&[
                                 wgpu::RenderPassColorAttachmentDescriptor {
-                                    attachment: &frame.view,
+                                    attachment: &frame.output.view,
                                     resolve_target: None,
-                                    load_op: wgpu::LoadOp::Clear,
-                                    store_op: wgpu::StoreOp::Store,
-                                    clear_color: wgpu::Color {
-                                        r: 0.4,
-                                        g: 0.4,
-                                        b: 0.4,
-                                        a: 1.0,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                                            r: 0.4,
+                                            g: 0.4,
+                                            b: 0.4,
+                                            a: 1.0,
+                                        }),
+                                        store: true,
                                     },
                                 },
-                            ],
+                            ]),
                             depth_stencil_attachment: None,
                         },
                     );
@@ -143,13 +148,13 @@ fn main() -> Result<(), String> {
                     .draw_queued(
                         &device,
                         &mut encoder,
-                        &frame.view,
+                        &frame.output.view,
                         size.width,
                         size.height,
                     )
                     .expect("Draw queued");
 
-                queue.submit(&[encoder.finish()]);
+                queue.submit(Some(encoder.finish()));
             }
             _ => {
                 *control_flow = winit::event_loop::ControlFlow::Wait;

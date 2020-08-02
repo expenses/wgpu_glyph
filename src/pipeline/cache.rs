@@ -1,3 +1,5 @@
+use wgpu::util::DeviceExt;
+
 pub struct Cache {
     texture: wgpu::Texture,
     pub(super) view: wgpu::TextureView,
@@ -14,7 +16,7 @@ fn multiple_of_256(value: usize) -> usize {
 impl Cache {
     pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Cache {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("wgpu_glyph::Cache"),
+            label: Some("wgpu_glyph::Cache".into()),
             size: wgpu::Extent3d {
                 width,
                 height,
@@ -54,9 +56,17 @@ impl Cache {
                     .copy_from_slice(&data[row * width .. (row + 1) * width]); 
             }
 
-            device.create_buffer_with_data(&padded_data, wgpu::BufferUsage::COPY_SRC)
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("wgpu_glyph cache buffer"),
+                contents: &padded_data,
+                usage: wgpu::BufferUsage::COPY_SRC,
+            })
         } else {
-            device.create_buffer_with_data(data, wgpu::BufferUsage::COPY_SRC)
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("wgpu_glyph cache buffer"),
+                contents: data,
+                usage: wgpu::BufferUsage::COPY_SRC,
+            })
         };
 
         encoder.copy_buffer_to_texture(
