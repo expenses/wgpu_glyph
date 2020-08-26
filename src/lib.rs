@@ -27,10 +27,10 @@ use std::hash::{Hash, Hasher};
 use glyph_brush::{BrushAction, BrushError, DefaultSectionHasher};
 use log::{log_enabled, warn};
 
-#[derive(Clone, Hash, PartialEq)]
+#[derive(Clone, Hash, PartialEq, Default)]
 pub struct Extra {
-    other: glyph_brush::Extra,
-    draw_mode: DrawMode,
+    pub other: glyph_brush::Extra,
+    pub draw_mode: DrawMode,
 }
 
 /// The mode to render the glyphs with.
@@ -553,5 +553,34 @@ impl<F, H> std::fmt::Debug for GlyphBrush<F, H> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GlyphBrush")
+    }
+}
+
+#[derive(Hash)]
+pub struct PixelPositioner(pub Layout<BuiltInLineBreaker>);
+
+impl GlyphPositioner for PixelPositioner {
+    fn calculate_glyphs<F, S>(
+        &self,
+        fonts: &[F],
+        geometry: &SectionGeometry,
+        sections: &[S]
+    ) -> Vec<SectionGlyph>
+        where
+            F: Font,
+            S: glyph_brush::ToSectionText, 
+    {
+        let mut glyphs = self.0.calculate_glyphs(fonts, geometry, sections);
+
+        for g in &mut glyphs {
+            g.glyph.position.x = g.glyph.position.x.floor();
+            g.glyph.position.y = g.glyph.position.y.floor();
+        }
+
+        glyphs
+    }
+
+    fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect {
+        self.0.bounds_rect(geometry)
     }
 }
