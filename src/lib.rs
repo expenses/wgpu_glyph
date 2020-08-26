@@ -14,7 +14,7 @@ use pipeline::{Instance, Pipeline};
 pub use builder::GlyphBrushBuilder;
 pub use glyph_brush::ab_glyph;
 pub use glyph_brush::{
-    BuiltInLineBreaker, Extra, FontId, GlyphCruncher, GlyphPositioner,
+    BuiltInLineBreaker, FontId, GlyphCruncher, GlyphPositioner,
     HorizontalAlign, Layout, LineBreak, LineBreaker, Section, SectionGeometry,
     SectionGlyph, SectionGlyphIter, SectionText, Text, VerticalAlign,
 };
@@ -22,9 +22,43 @@ pub use glyph_brush::{
 use ab_glyph::{Font, Rect};
 use core::hash::BuildHasher;
 use std::borrow::Cow;
+use std::hash::{Hash, Hasher};
 
 use glyph_brush::{BrushAction, BrushError, DefaultSectionHasher};
 use log::{log_enabled, warn};
+
+#[derive(Clone, Hash, PartialEq)]
+pub struct Extra {
+    other: glyph_brush::Extra,
+    draw_mode: DrawMode,
+}
+
+/// The mode to render the glyphs with.
+#[derive(Clone, PartialEq)]
+pub enum DrawMode {
+    /// The default mode which uses a 1:1 pixel ratio and smooth edges.
+    Normal,
+    /// A pixelated mode, which pixelated the font by a certain value and rounds the alpha values.
+    Pixelated(f32)
+}
+
+impl Default for DrawMode {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+impl Hash for DrawMode {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match *self {
+            Self::Normal => 0.hash(state),
+            Self::Pixelated(value) => {
+                1.hash(state);
+                ordered_float::OrderedFloat::from(value).hash(state)
+            }
+        }
+    }
+}
 
 /// Object allowing glyph drawing, containing cache state. Manages glyph positioning cacheing,
 /// glyph draw caching & efficient GPU texture cache updating and re-sizing on demand.
@@ -44,7 +78,7 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
     #[inline]
     pub fn queue<'a, S>(&mut self, section: S)
     where
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
     {
         self.glyph_brush.queue(section)
     }
@@ -65,7 +99,7 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
         custom_layout: &G,
     ) where
         G: GlyphPositioner,
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
     {
         self.glyph_brush.queue_custom_layout(section, custom_layout)
     }
@@ -94,9 +128,16 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
         section: S,
         custom_layout: &G,
     ) where
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
         G: GlyphPositioner,
     {
+        let section = section.into().into_owned();
+        let text = section.text.iter().cloned().map(|text| {
+            let extra = text.extra.other.clone();
+            text.with_extra(extra)
+        }).collect();
+        let section = section.with_text(text);
+
         self.glyph_brush
             .keep_cached_custom_layout(section, custom_layout)
     }
@@ -109,8 +150,15 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
     #[inline]
     pub fn keep_cached<'a, S>(&mut self, section: S)
     where
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
     {
+        let section = section.into().into_owned();
+        let text = section.text.iter().cloned().map(|text| {
+            let extra = text.extra.other.clone();
+            text.with_extra(extra)
+        }).collect();
+        let section = section.with_text(text);
+
         self.glyph_brush.keep_cached(section)
     }
 
@@ -466,7 +514,7 @@ pub fn orthographic_projection(width: u32, height: u32) -> [f32; 16] {
     ]
 }
 
-impl<D, F: Font, H: BuildHasher> GlyphCruncher<F> for GlyphBrush<D, F, H> {
+impl<D, F: Font, H: BuildHasher> GlyphCruncher<F, Extra> for GlyphBrush<D, F, H> {
     #[inline]
     fn glyphs_custom_layout<'a, 'b, S, L>(
         &'b mut self,
@@ -475,7 +523,7 @@ impl<D, F: Font, H: BuildHasher> GlyphCruncher<F> for GlyphBrush<D, F, H> {
     ) -> SectionGlyphIter<'b>
     where
         L: GlyphPositioner + std::hash::Hash,
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
     {
         self.glyph_brush
             .glyphs_custom_layout(section, custom_layout)
@@ -494,7 +542,7 @@ impl<D, F: Font, H: BuildHasher> GlyphCruncher<F> for GlyphBrush<D, F, H> {
     ) -> Option<Rect>
     where
         L: GlyphPositioner + std::hash::Hash,
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, Extra>>>,
     {
         self.glyph_brush
             .glyph_bounds_custom_layout(section, custom_layout)

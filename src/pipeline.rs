@@ -466,7 +466,7 @@ impl Instance {
             pixel_coords,
             bounds,
             extra,
-        }: glyph_brush::GlyphVertex,
+        }: glyph_brush::GlyphVertex<crate::Extra>,
     ) -> Instance {
         let gl_bounds = bounds;
 
@@ -505,11 +505,11 @@ impl Instance {
         }
 
         Instance {
-            left_top: [gl_rect.min.x, gl_rect.max.y, extra.z],
+            left_top: [gl_rect.min.x, gl_rect.max.y, extra.other.z],
             right_bottom: [gl_rect.max.x, gl_rect.min.y],
             tex_left_top: [tex_coords.min.x, tex_coords.max.y],
             tex_right_bottom: [tex_coords.max.x, tex_coords.min.y],
-            color: extra.color,
+            color: extra.other.color,
         }
     }
 }
