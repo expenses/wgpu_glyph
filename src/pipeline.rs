@@ -342,6 +342,11 @@ fn build<D>(
                         format: wgpu::VertexFormat::Float4,
                         offset: 4 * (3 + 2 + 2 + 2),
                     },
+                    wgpu::VertexAttributeDescriptor {
+                        shader_location: 5,
+                        format: wgpu::VertexFormat::Float,
+                        offset: 4 * (3 + 2 + 2 + 2 + 4),
+                    },
                 ],
             }],
         },
@@ -455,6 +460,7 @@ pub struct Instance {
     tex_left_top: [f32; 2],
     tex_right_bottom: [f32; 2],
     color: [f32; 4],
+    pixelation: f32,
 }
 
 impl Instance {
@@ -510,6 +516,10 @@ impl Instance {
             tex_left_top: [tex_coords.min.x, tex_coords.max.y],
             tex_right_bottom: [tex_coords.max.x, tex_coords.min.y],
             color: extra.other.color,
+            pixelation: match extra.draw_mode {
+                crate::DrawMode::Normal => -1.0,
+                crate::DrawMode::Pixelated(factor) => factor
+            }
         }
     }
 }

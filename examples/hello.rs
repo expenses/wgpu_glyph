@@ -1,5 +1,7 @@
 use std::error::Error;
-use wgpu_glyph::{ab_glyph, GlyphBrushBuilder, Section, Text};
+use wgpu_glyph::{
+    ab_glyph, GlyphBrushBuilder, Section, Text, default_section, text, PixelPositioner, Layout,
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -64,6 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     ))?;
 
     let mut glyph_brush = GlyphBrushBuilder::using_font(inconsolata)
+        .texture_filter_method(wgpu::FilterMode::Nearest)
         .build(&device, render_format);
 
     // Render loop
@@ -135,20 +138,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 glyph_brush.queue(Section {
                     screen_position: (30.0, 30.0),
                     bounds: (size.width as f32, size.height as f32),
-                    text: vec![Text::new("Hello wgpu_glyph!")
-                        .with_color([0.0, 0.0, 0.0, 1.0])
-                        .with_scale(40.0)],
-                    ..Section::default()
+                    text: vec![text("Hello wgpu_glyph!", [0.0, 0.0, 0.0, 1.0], 40.0, None)],
+                    ..default_section()
                 });
 
-                glyph_brush.queue(Section {
+                let layout = PixelPositioner(Layout::default());
+
+                glyph_brush.queue_custom_layout(Section {
                     screen_position: (30.0, 90.0),
                     bounds: (size.width as f32, size.height as f32),
-                    text: vec![Text::new("Hello wgpu_glyph!")
-                        .with_color([1.0, 1.0, 1.0, 1.0])
-                        .with_scale(40.0)],
-                    ..Section::default()
-                });
+                    text: vec![text("Hello wgpu_glyph!", [1.0; 4], 40.0, Some(2.0))],
+                    ..default_section()
+                }, &layout);
 
                 // Draw the text!
                 glyph_brush

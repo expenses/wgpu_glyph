@@ -15,9 +15,35 @@ pub use builder::GlyphBrushBuilder;
 pub use glyph_brush::ab_glyph;
 pub use glyph_brush::{
     BuiltInLineBreaker, FontId, GlyphCruncher, GlyphPositioner,
-    HorizontalAlign, Layout, LineBreak, LineBreaker, Section, SectionGeometry,
-    SectionGlyph, SectionGlyphIter, SectionText, Text, VerticalAlign,
+    HorizontalAlign, Layout, LineBreak, LineBreaker, SectionGeometry,
+    SectionGlyph, SectionGlyphIter, SectionText, VerticalAlign,
 };
+
+pub type Section<'a> = glyph_brush::Section<'a, Extra>;
+pub type Text<'a> = glyph_brush::Text<'a, Extra>;
+
+pub fn default_section() -> Section<'static> {
+    Section {
+        screen_position: (0.0, 0.0),
+        bounds: (f32::INFINITY, f32::INFINITY),
+        layout: Layout::default(),
+        text: Vec::new(),
+    }
+}
+
+pub fn text(text: &str, color: [f32; 4], scale: f32, pixelation: Option<f32>) -> Text {
+    Text {
+        text,
+        scale: scale.into(),
+        font_id: Default::default(),
+        extra: Extra {
+            other: glyph_brush::Extra {
+                color, ..Default::default()
+            },
+            draw_mode: pixelation.map(DrawMode::Pixelated).unwrap_or(DrawMode::Normal)
+        }
+    }
+}
 
 use ab_glyph::{Font, Rect};
 use core::hash::BuildHasher;
@@ -78,7 +104,7 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
     #[inline]
     pub fn queue<'a, S>(&mut self, section: S)
     where
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
     {
         self.glyph_brush.queue(section)
     }
@@ -99,8 +125,10 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
         custom_layout: &G,
     ) where
         G: GlyphPositioner,
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
     {
+        let mut section = section.into();
+        preprocess_section(&mut section);
         self.glyph_brush.queue_custom_layout(section, custom_layout)
     }
 
@@ -128,7 +156,7 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
         section: S,
         custom_layout: &G,
     ) where
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
         G: GlyphPositioner,
     {
         let section = section.into().into_owned();
@@ -150,7 +178,7 @@ impl<Depth, F: Font, H: BuildHasher> GlyphBrush<Depth, F, H> {
     #[inline]
     pub fn keep_cached<'a, S>(&mut self, section: S)
     where
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
     {
         let section = section.into().into_owned();
         let text = section.text.iter().cloned().map(|text| {
@@ -523,7 +551,7 @@ impl<D, F: Font, H: BuildHasher> GlyphCruncher<F, Extra> for GlyphBrush<D, F, H>
     ) -> SectionGlyphIter<'b>
     where
         L: GlyphPositioner + std::hash::Hash,
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
     {
         self.glyph_brush
             .glyphs_custom_layout(section, custom_layout)
@@ -542,7 +570,7 @@ impl<D, F: Font, H: BuildHasher> GlyphCruncher<F, Extra> for GlyphBrush<D, F, H>
     ) -> Option<Rect>
     where
         L: GlyphPositioner + std::hash::Hash,
-        S: Into<Cow<'a, Section<'a, Extra>>>,
+        S: Into<Cow<'a, Section<'a>>>,
     {
         self.glyph_brush
             .glyph_bounds_custom_layout(section, custom_layout)
@@ -553,6 +581,19 @@ impl<F, H> std::fmt::Debug for GlyphBrush<F, H> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GlyphBrush")
+    }
+}
+
+fn preprocess_section(section: &mut Cow<Section>) {
+    if let DrawMode::Pixelated(pixelation) = section.text[0].extra.draw_mode {
+        let section = section.to_mut();
+        section.screen_position.0 /= pixelation;
+        section.screen_position.1 /= pixelation;
+
+        for text in &mut section.text {
+            text.scale.x /= pixelation;
+            text.scale.y /= pixelation;
+        }
     }
 }
 
