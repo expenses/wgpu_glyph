@@ -11,7 +11,7 @@ documentation = "https://docs.rs/wgpu_glyph"
 readme = "README.md"
 
 [dependencies]
-wgpu = "0.6"
+wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", branch = "gecko" }
 glyph_brush = "0.7"
 log = "0.4"
 zerocopy = "0.3"
@@ -22,7 +22,7 @@ winit = "0.22"
 futures = "0.3"
 
 [patch.crates-io]
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs" }
-web-sys = { git = "https://github.com/rustwasm/wasm-bindgen" }
-wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen" }
-js-sys = { git = "https://github.com/rustwasm/wasm-bindgen" }
+wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen", rev = "316c5a70fdc4a052fb65ef82bf02d52107b5671b" }
+wasm-bindgen-futures = { git = "https://github.com/rustwasm/wasm-bindgen", rev = "316c5a70fdc4a052fb65ef82bf02d52107b5671b" }
+web-sys = { git = "https://github.com/rustwasm/wasm-bindgen", rev = "316c5a70fdc4a052fb65ef82bf02d52107b5671b" }
+js-sys = { git = "https://github.com/rustwasm/wasm-bindgen", rev = "316c5a70fdc4a052fb65ef82bf02d52107b5671b" }
